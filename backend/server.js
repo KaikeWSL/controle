@@ -9,6 +9,7 @@ require('dotenv').config();
 // Importar conexão com banco e middleware
 const { testConnection, closeConnection } = require('./db/connection');
 const { runMigrations } = require('./db/migrations');
+const { runEssentialMigrations } = require('./db/migrations-essential');
 
 // Importar rotas
 const authRoutes = require('./routes/auth');
@@ -283,7 +284,19 @@ const startServer = async () => {
     
     // Executar migrações (criar tabelas)
     console.log('🔧 Executando migrações do banco de dados...');
-    await runMigrations();
+    
+    // Em produção, usar migrações essenciais apenas
+    if (process.env.NODE_ENV === 'production') {
+      const success = await runEssentialMigrations();
+      if (!success) {
+        console.error('❌ Falha nas migrações essenciais');
+        process.exit(1);
+      }
+    } else {
+      // Em desenvolvimento, usar migrações completas
+      await runMigrations();
+    }
+    
     console.log('✅ Migrações executadas com sucesso!');
     
     // Iniciar servidor

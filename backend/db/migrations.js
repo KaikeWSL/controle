@@ -54,13 +54,17 @@ const migrations = [
         detalhes TEXT,                          -- Detalhes da ação (JSON ou texto)
         ip_address TEXT,                        -- IP do usuário
         user_agent TEXT,                        -- Browser/OS do usuário
-        timestamp TIMESTAMP DEFAULT NOW(),      -- Data e hora da ação
-        
-        -- Índice para consultas rápidas
-        INDEX idx_logs_usuario_id (usuario_id),
-        INDEX idx_logs_timestamp (timestamp),
-        INDEX idx_logs_acao (acao)
+        timestamp TIMESTAMP DEFAULT NOW()       -- Data e hora da ação
       );
+    `
+  },
+  {
+    name: 'Criar índices para logs',
+    sql: `
+      -- Índices para tabela logs
+      CREATE INDEX IF NOT EXISTS idx_logs_usuario_id ON logs(usuario_id);
+      CREATE INDEX IF NOT EXISTS idx_logs_timestamp ON logs(timestamp);
+      CREATE INDEX IF NOT EXISTS idx_logs_acao ON logs(acao);
     `
   },
   {
@@ -180,7 +184,14 @@ const runMigrations = async () => {
         console.log(`✅ ${migration.name} - Concluída\n`);
       } catch (error) {
         console.error(`❌ ${migration.name} - Erro:`, error.message);
-        throw error;
+        
+        // Se for erro de índice ou dados iniciais, continuar
+        if (migration.name.includes('índices') || migration.name.includes('dados iniciais')) {
+          console.log(`⚠️  Continuando mesmo com erro em: ${migration.name}\n`);
+        } else {
+          // Para tabelas essenciais, parar a execução
+          throw error;
+        }
       }
     }
     
