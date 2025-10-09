@@ -120,7 +120,19 @@ class ApiService {
 
   // Métodos de autenticação
   async loginUser(credentials: LoginUserRequest): Promise<AuthResponse> {
+    // Testar rota original sem Joi
     const response: AxiosResponse<AuthResponse> = await this.api.post('/auth/login-user', credentials);
+    
+    if (response.data.success && response.data.data?.token) {
+      this.setToken(response.data.data.token);
+    }
+    
+    return response.data;
+  }
+
+  async loginUserSimple(credentials: LoginUserRequest): Promise<AuthResponse> {
+    // Rota simplificada para debug
+    const response: AxiosResponse<AuthResponse> = await this.api.post('/auth/login-user-simple', credentials);
     
     if (response.data.success && response.data.data?.token) {
       this.setToken(response.data.data.token);

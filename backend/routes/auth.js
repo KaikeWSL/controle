@@ -18,6 +18,26 @@ router.get('/test', (req, res) => {
 });
 
 /**
+ * Rota de teste básica para login
+ */
+router.post('/test-login', (req, res) => {
+  try {
+    res.json({
+      success: true,
+      message: 'Endpoint de login funcionando!',
+      received: req.body,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Erro no teste de login',
+      error: error.message
+    });
+  }
+});
+
+/**
  * Schemas de validação
  */
 const loginUserSchema = Joi.object({
@@ -58,6 +78,54 @@ const logAction = async (usuario, usuario_id, acao, detalhes, req) => {
 };
 
 /**
+ * POST /api/auth/login-user-simple
+ * Versão simplificada para debug
+ */
+router.post('/login-user-simple', async (req, res) => {
+  try {
+    console.log('🔐 LOGIN SIMPLE - Início');
+    console.log('📦 Body recebido:', req.body);
+    
+    const { hardwareId } = req.body;
+    
+    if (!hardwareId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Hardware ID é obrigatório'
+      });
+    }
+    
+    console.log('🆔 Hardware ID:', hardwareId);
+    
+    // Token fake para teste
+    const fakeToken = 'fake-jwt-token-for-testing';
+    
+    console.log('✅ LOGIN SIMPLE - Sucesso');
+    
+    res.json({
+      success: true,
+      message: 'Login teste bem-sucedido!',
+      data: {
+        user: {
+          id: hardwareId,
+          nome: `Usuario_${hardwareId.substring(0, 8)}`,
+          tipo: 'usuario'
+        },
+        token: fakeToken
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ LOGIN SIMPLE - Erro:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erro no login simples',
+      error: error.message
+    });
+  }
+});
+
+/**
  * POST /api/auth/login-user
  * Login de usuário via Hardware ID
  */
@@ -65,18 +133,25 @@ router.post('/login-user', async (req, res) => {
   try {
     console.log('🔐 Tentativa de login de usuário:', req.body);
     
-    // Validar entrada
-    const { error, value } = loginUserSchema.validate(req.body);
-    if (error) {
-      console.log('❌ Erro de validação:', error.details[0].message);
+    // Validação básica sem Joi
+    const { hardwareId } = req.body;
+    
+    if (!hardwareId || typeof hardwareId !== 'string') {
+      console.log('❌ Hardware ID inválido');
       return res.status(400).json({
         success: false,
-        message: 'Dados inválidos',
-        details: error.details[0].message
+        message: 'Hardware ID é obrigatório e deve ser uma string'
       });
     }
     
-    const { hardwareId } = value;
+    if (hardwareId.length < 3 || hardwareId.length > 100) {
+      console.log('❌ Hardware ID com tamanho inválido');
+      return res.status(400).json({
+        success: false,
+        message: 'Hardware ID deve ter entre 3 e 100 caracteres'
+      });
+    }
+    
     console.log('🆔 Hardware ID recebido:', hardwareId);
     
     // Verificar se usuário existe
@@ -185,10 +260,8 @@ router.post('/login-user', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
-      ...(process.env.NODE_ENV === 'development' && { 
-        error: error.message,
-        stack: error.stack 
-      })
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 });
