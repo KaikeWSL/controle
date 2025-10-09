@@ -49,9 +49,12 @@ const logAction = async (usuario, usuario_id, acao, detalhes, req) => {
  */
 router.post('/login-user', async (req, res) => {
   try {
+    console.log('🔐 Tentativa de login de usuário:', req.body);
+    
     // Validar entrada
     const { error, value } = loginUserSchema.validate(req.body);
     if (error) {
+      console.log('❌ Erro de validação:', error.details[0].message);
       return res.status(400).json({
         success: false,
         message: 'Dados inválidos',
@@ -60,6 +63,7 @@ router.post('/login-user', async (req, res) => {
     }
     
     const { hardwareId } = value;
+    console.log('🆔 Hardware ID recebido:', hardwareId);
     
     // Verificar se usuário existe e está liberado
     const userResult = await query(
@@ -68,15 +72,56 @@ router.post('/login-user', async (req, res) => {
     );
     
     if (userResult.rows.length === 0) {
-      await logAction(null, hardwareId, 'LOGIN_FALHOU', { motivo: 'Usuario nao encontrado' }, req);
+      console.log('👤 Usuário não encontrado, criando novo usuário...');
       
-      return res.status(404).json({
-        success: false,
-        message: 'Usuário não encontrado. Entre em contato com o administrador.'
+      // Criar usuário automaticamente (liberado por padrão)
+      const novoNome = `Usuario_${hardwareId.substring(0, 8)}`;
+      
+      await query(
+        'INSERT INTO usuarios (id, nome, liberado, ativo, data_criacao) VALUES ($1, $2, $3, $4, NOW())',
+        [hardwareId, novoNome, true, true]
+      );
+      
+      console.log('✅ Novo usuário criado:', novoNome);
+      
+      // Buscar o usuário recém-criado
+      const newUserResult = await query(
+        'SELECT id, nome, liberado, ativo FROM usuarios WHERE id = $1',
+        [hardwareId]
+      );
+      
+      const user = newUserResult.rows[0];
+      
+      // Gerar token JWT
+      const tokenPayload = {
+        userId: user.id,
+        nome: user.nome,
+        tipo: 'usuario',
+        liberado: user.liberado
+      };
+      
+      const token = generateToken(tokenPayload);
+      
+      // Registrar log de sucesso
+      await logAction(user.nome, hardwareId, 'NOVO_USUARIO_LOGIN', { tipo: 'usuario', auto_criado: true }, req);
+      
+      return res.json({
+        success: true,
+        message: `Bem-vindo, ${user.nome}! Conta criada automaticamente.`,
+        data: {
+          user: {
+            id: user.id,
+            nome: user.nome,
+            tipo: 'usuario',
+            liberado: user.liberado
+          },
+          token
+        }
       });
     }
     
     const user = userResult.rows[0];
+    console.log('👤 Usuário encontrado:', user.nome);
     
     if (!user.liberado) {
       await logAction(user.nome, hardwareId, 'LOGIN_FALHOU', { motivo: 'Usuario nao liberado' }, req);
@@ -129,10 +174,16 @@ router.post('/login-user', async (req, res) => {
     });
     
   } catch (error) {
-    console.error('Erro no login de usuário:', error);
+    console.error('❌ Erro no login de usuário:', error);
+    console.error('Stack trace:', error.stack);
+    
     res.status(500).json({
       success: false,
-      message: 'Erro interno do servidor'
+      message: 'Erro interno do servidor',
+      ...(process.env.NODE_ENV === 'development' && { 
+        error: error.message,
+        stack: error.stack 
+      })
     });
   }
 });

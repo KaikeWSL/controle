@@ -8,6 +8,7 @@ require('dotenv').config();
 
 // Importar conexão com banco e middleware
 const { testConnection, closeConnection } = require('./db/connection');
+const { runMigrations } = require('./db/migrations');
 
 // Importar rotas
 const authRoutes = require('./routes/auth');
@@ -279,6 +280,11 @@ const startServer = async () => {
       console.error('💡 Verifique as configurações no arquivo .env');
       process.exit(1);
     }
+    
+    // Executar migrações (criar tabelas)
+    console.log('🔧 Executando migrações do banco de dados...');
+    await runMigrations();
+    console.log('✅ Migrações executadas com sucesso!');
     
     // Iniciar servidor
     const server = app.listen(PORT, () => {
