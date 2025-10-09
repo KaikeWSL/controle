@@ -1,0 +1,324 @@
+{% extends "base.html" %}
+
+{% block title %}Nodes Disponíveis - Sistema de Nodes{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="progress-section">
+            <h2><i class="fas fa-play-circle me-2"></i>Nodes Disponíveis</h2>
+            <p class="mb-0">Selecione um node para iniciar a execução</p>
+        </div>
+    </div>
+</div>
+
+<!-- Filtros -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <select class="form-select" id="filter-estado">
+            <option value="">Todos os Estados</option>
+        </select>
+    </div>
+    <div class="col-md-3">
+        <select class="form-select" id="filter-cidade">
+            <option value="">Todas as Cidades</option>
+        </select>
+    </div>
+    <div class="col-md-3">
+        <select class="form-select" id="filter-grupo">
+            <option value="">Todos os Grupos</option>
+        </select>
+    </div>
+    <div class="col-md-3">
+        <input type="text" class="form-control" id="search-nodes" placeholder="Pesquisar nodes...">
+    </div>
+</div>
+
+<!-- Lista de Nodes Disponíveis -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="fas fa-list me-2"></i>Nodes Disponíveis para Execução
+                    <span class="badge bg-primary ms-2" id="available-count">0</span>
+                </h5>
+                <button class="btn btn-primary btn-sm" onclick="loadAvailableNodes()">
+                    <i class="fas fa-refresh me-1"></i>Atualizar
+                </button>
+            </div>
+            <div class="card-body">
+                <div class="row" id="nodes-container">
+                    <div class="col-12 text-center">
+                        <i class="fas fa-spinner fa-spin fa-2x text-muted"></i>
+                        <p class="text-muted mt-2">Carregando nodes disponíveis...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Confirmar Início -->
+<div class="modal fade" id="startNodeModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Iniciar Execução do Node</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    Você está prestes a iniciar a execução do node:
+                </div>
+                
+                <div class="card">
+                    <div class="card-body">
+                        <h6 class="card-title" id="modal-node-bloco">-</h6>
+                        <p class="card-text">
+                            <strong>Localização:</strong> <span id="modal-node-location">-</span><br>
+                            <strong>Grupo:</strong> <span id="modal-node-grupo">-</span>
+                        </p>
+                    </div>
+                </div>
+                
+                <div class="mt-3">
+                    <p class="text-muted">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        <strong>Importante:</strong> Você só pode ter um node em execução por vez. 
+                        Certifique-se de que pode dedicar tempo para completar esta tarefa.
+                    </p>
+                </div>
+                
+                <input type="hidden" id="selected-node-id">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-success" onclick="confirmStartNode()">
+                    <i class="fas fa-play me-2"></i>Iniciar Execução
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let availableNodes = [];
+    let filteredNodes = [];
+    
+    async function loadAvailableNodes() {
+        try {
+            const response = await authenticatedFetch('/api/nodes/available');
+            availableNodes = await response.json();
+            filteredNodes = [...availableNodes];
+            
+            populateFilters();
+            displayNodes();
+            updateAvailableCount();
+            
+        } catch (error) {
+            console.error('Erro ao carregar nodes:', error);
+            showAlert('Erro ao carregar nodes disponíveis', 'danger');
+            
+            $('#nodes-container').html(`
+                <div class="col-12 text-center">
+                    <i class="fas fa-exclamation-triangle fa-2x text-danger"></i>
+                    <p class="text-danger mt-2">Erro ao carregar nodes disponíveis</p>
+                    <button class="btn btn-primary" onclick="loadAvailableNodes()">
+                        <i class="fas fa-retry me-2"></i>Tentar Novamente
+                    </button>
+                </div>
+            `);
+        }
+    }
+    
+    function populateFilters() {
+        // Estados únicos
+        const estados = [...new Set(availableNodes.map(n => n.estado))].sort();
+        const filterEstado = $('#filter-estado');
+        filterEstado.find('option:not(:first)').remove();
+        estados.forEach(estado => {
+            filterEstado.append(`<option value="${estado}">${estado}</option>`);
+        });
+        
+        // Cidades únicas
+        const cidades = [...new Set(availableNodes.map(n => n.cidade))].sort();
+        const filterCidade = $('#filter-cidade');
+        filterCidade.find('option:not(:first)').remove();
+        cidades.forEach(cidade => {
+            filterCidade.append(`<option value="${cidade}">${cidade}</option>`);
+        });
+        
+        // Grupos únicos
+        const grupos = [...new Set(availableNodes.map(n => n.grupo))].sort();
+        const filterGrupo = $('#filter-grupo');
+        filterGrupo.find('option:not(:first)').remove();
+        grupos.forEach(grupo => {
+            filterGrupo.append(`<option value="${grupo}">${grupo}</option>`);
+        });
+    }
+    
+    function displayNodes() {
+        const container = $('#nodes-container');
+        container.empty();
+        
+        if (filteredNodes.length === 0) {
+            container.append(`
+                <div class="col-12 text-center">
+                    <i class="fas fa-search fa-2x text-muted"></i>
+                    <p class="text-muted mt-2">Nenhum node disponível encontrado</p>
+                    <small class="text-muted">
+                        Experimente ajustar os filtros ou aguarde novos nodes serem disponibilizados
+                    </small>
+                </div>
+            `);
+            return;
+        }
+        
+        // Agrupa nodes por estado/cidade para melhor organização
+        const groupedNodes = {};
+        filteredNodes.forEach(node => {
+            const key = `${node.estado} - ${node.cidade}`;
+            if (!groupedNodes[key]) {
+                groupedNodes[key] = [];
+            }
+            groupedNodes[key].push(node);
+        });
+        
+        Object.keys(groupedNodes).sort().forEach(location => {
+            const nodes = groupedNodes[location];
+            
+            container.append(`
+                <div class="col-12 mb-4">
+                    <h6 class="text-primary border-bottom pb-2">
+                        <i class="fas fa-map-marker-alt me-2"></i>${location}
+                        <span class="badge bg-light text-dark ms-2">${nodes.length} nodes</span>
+                    </h6>
+                    <div class="row" id="location-${location.replace(/\s+/g, '-')}">
+                    </div>
+                </div>
+            `);
+            
+            const locationContainer = $(`#location-${location.replace(/\s+/g, '-')}`);
+            
+            nodes.forEach(node => {
+                locationContainer.append(`
+                    <div class="col-md-6 col-lg-4 mb-3">
+                        <div class="card h-100 border-success">
+                            <div class="card-body">
+                                <h6 class="card-title text-success">
+                                    <i class="fas fa-cube me-2"></i>${node.bloco}
+                                </h6>
+                                
+                                <div class="mb-2">
+                                    <span class="badge bg-info">${node.grupo}</span>
+                                    <span class="badge bg-success ms-1">Disponível</span>
+                                </div>
+                                
+                                <p class="card-text">
+                                    <small class="text-muted">
+                                        <i class="fas fa-calendar-plus me-1"></i>
+                                        Criado em ${new Date(node.created_at).toLocaleDateString('pt-BR')}
+                                    </small>
+                                </p>
+                                
+                                <div class="d-grid">
+                                    <button class="btn btn-success" onclick="selectNode(${node.id}, '${node.bloco}', '${node.cidade}', '${node.estado}', '${node.grupo}')">
+                                        <i class="fas fa-play me-2"></i>Iniciar Execução
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `);
+            });
+        });
+    }
+    
+    function selectNode(nodeId, bloco, cidade, estado, grupo) {
+        $('#selected-node-id').val(nodeId);
+        $('#modal-node-bloco').text(bloco);
+        $('#modal-node-location').text(`${cidade}, ${estado}`);
+        $('#modal-node-grupo').text(grupo);
+        
+        $('#startNodeModal').modal('show');
+    }
+    
+    async function confirmStartNode() {
+        const nodeId = $('#selected-node-id').val();
+        
+        if (!nodeId) {
+            showAlert('Node não selecionado', 'warning');
+            return;
+        }
+        
+        try {
+            const response = await authenticatedFetch(`/api/nodes/${nodeId}/start`, {
+                method: 'POST'
+            });
+            
+            if (response.ok) {
+                const node = await response.json();
+                showAlert(`Execução do node ${node.bloco} iniciada com sucesso!`, 'success');
+                
+                $('#startNodeModal').modal('hide');
+                
+                // Remove o node da lista de disponíveis
+                availableNodes = availableNodes.filter(n => n.id != nodeId);
+                applyFilters();
+                
+                // Redireciona para a página de "meus nodes"
+                setTimeout(() => {
+                    window.location.href = '/nodes';
+                }, 2000);
+                
+            } else {
+                const error = await response.json();
+                showAlert(error.detail || 'Erro ao iniciar execução', 'danger');
+            }
+            
+        } catch (error) {
+            console.error('Erro ao iniciar node:', error);
+            showAlert('Erro ao iniciar execução do node', 'danger');
+        }
+    }
+    
+    function applyFilters() {
+        const estado = $('#filter-estado').val();
+        const cidade = $('#filter-cidade').val();
+        const grupo = $('#filter-grupo').val();
+        const search = $('#search-nodes').val().toLowerCase();
+        
+        filteredNodes = availableNodes.filter(node => {
+            if (estado && node.estado !== estado) return false;
+            if (cidade && node.cidade !== cidade) return false;
+            if (grupo && node.grupo !== grupo) return false;
+            if (search && !node.bloco.toLowerCase().includes(search)) return false;
+            
+            return true;
+        });
+        
+        displayNodes();
+        updateAvailableCount();
+    }
+    
+    function updateAvailableCount() {
+        $('#available-count').text(filteredNodes.length);
+    }
+    
+    // Event listeners para filtros
+    $('#filter-estado, #filter-cidade, #filter-grupo').on('change', applyFilters);
+    $('#search-nodes').on('input', applyFilters);
+    
+    // Inicialização
+    $(document).ready(function() {
+        loadAvailableNodes();
+        
+        // Atualiza automaticamente a cada 30 segundos
+        setInterval(loadAvailableNodes, 30000);
+    });
+</script>
+{% endblock %}

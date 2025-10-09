@@ -1,0 +1,534 @@
+{% extends "base.html" %}
+
+{% block title %}Meus Nodes - Sistema de Nodes{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="progress-section">
+            <h2><i class="fas fa-list me-2"></i>Meus Nodes</h2>
+            <p class="mb-0">Gerencie os nodes que você está executando ou já executou</p>
+        </div>
+    </div>
+</div>
+
+<!-- Estatísticas Pessoais -->
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card text-white bg-warning">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4 id="my-running-count">0</h4>
+                        <p class="mb-0">Em Execução</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-spinner fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card text-white bg-success">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4 id="my-completed-count">0</h4>
+                        <p class="mb-0">Concluídos</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-check-circle fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card text-white bg-info">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4 id="my-total-count">0</h4>
+                        <p class="mb-0">Total</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-list fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Filtros -->
+<div class="row mb-4">
+    <div class="col-md-4">
+        <select class="form-select" id="filter-status">
+            <option value="">Todos os Status</option>
+            <option value="Em andamento">Em Execução</option>
+            <option value="Concluído">Concluídos</option>
+        </select>
+    </div>
+    <div class="col-md-4">
+        <select class="form-select" id="filter-grupo">
+            <option value="">Todos os Grupos</option>
+        </select>
+    </div>
+    <div class="col-md-4">
+        <input type="text" class="form-control" id="search-nodes" placeholder="Pesquisar meus nodes...">
+    </div>
+</div>
+
+<!-- Lista de Meus Nodes -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="fas fa-user-circle me-2"></i>Meus Nodes</h5>
+                <div>
+                    <a href="/available" class="btn btn-success btn-sm me-2">
+                        <i class="fas fa-plus me-1"></i>Iniciar Novo
+                    </a>
+                    <button class="btn btn-primary btn-sm" onclick="loadMyNodes()">
+                        <i class="fas fa-refresh me-1"></i>Atualizar
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="row" id="my-nodes-container">
+                    <div class="col-12 text-center">
+                        <i class="fas fa-spinner fa-spin fa-2x text-muted"></i>
+                        <p class="text-muted mt-2">Carregando seus nodes...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Completar Node -->
+<div class="modal fade" id="completeNodeModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Completar Execução do Node</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-success">
+                    <i class="fas fa-check-circle me-2"></i>
+                    Você está prestes a completar a execução do node:
+                </div>
+                
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h6 class="card-title" id="complete-modal-node-bloco">-</h6>
+                        <p class="card-text">
+                            <strong>Localização:</strong> <span id="complete-modal-node-location">-</span><br>
+                            <strong>Grupo:</strong> <span id="complete-modal-node-grupo">-</span><br>
+                            <strong>Iniciado em:</strong> <span id="complete-modal-node-started">-</span>
+                        </p>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="completion-observation" class="form-label">
+                        <i class="fas fa-comment me-2"></i>Observações finais:
+                    </label>
+                    <textarea class="form-control" id="completion-observation" rows="4" 
+                              placeholder="Descreva o trabalho realizado, problemas encontrados, ou outras observações importantes..."></textarea>
+                    <div class="form-text">
+                        As observações ajudam a manter um histórico detalhado das atividades
+                    </div>
+                </div>
+                
+                <input type="hidden" id="complete-node-id">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-success" onclick="confirmCompleteNode()">
+                    <i class="fas fa-check me-2"></i>Completar Execução
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Visualizar Detalhes -->
+<div class="modal fade" id="viewNodeModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Detalhes do Node</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6 class="text-primary">Informações Básicas</h6>
+                        <table class="table table-sm">
+                            <tr>
+                                <td><strong>Bloco:</strong></td>
+                                <td id="view-node-bloco">-</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Estado:</strong></td>
+                                <td id="view-node-estado">-</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Cidade:</strong></td>
+                                <td id="view-node-cidade">-</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Grupo:</strong></td>
+                                <td id="view-node-grupo">-</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Status:</strong></td>
+                                <td id="view-node-status">-</td>
+                            </tr>
+                        </table>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <h6 class="text-primary">Cronograma</h6>
+                        <table class="table table-sm">
+                            <tr>
+                                <td><strong>Criado em:</strong></td>
+                                <td id="view-node-created">-</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Iniciado em:</strong></td>
+                                <td id="view-node-started">-</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Concluído em:</strong></td>
+                                <td id="view-node-completed">-</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Tempo Total:</strong></td>
+                                <td id="view-node-duration">-</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+                
+                <div class="mt-3">
+                    <h6 class="text-primary">Observações</h6>
+                    <div class="border rounded p-3 bg-light" id="view-node-observations">
+                        <em class="text-muted">Nenhuma observação registrada</em>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let myNodes = [];
+    let filteredNodes = [];
+    
+    async function loadMyNodes() {
+        try {
+            const response = await authenticatedFetch('/api/nodes/my-nodes');
+            myNodes = await response.json();
+            filteredNodes = [...myNodes];
+            
+            updateStatistics();
+            populateFilters();
+            displayMyNodes();
+            
+        } catch (error) {
+            console.error('Erro ao carregar meus nodes:', error);
+            showAlert('Erro ao carregar seus nodes', 'danger');
+            
+            $('#my-nodes-container').html(`
+                <div class="col-12 text-center">
+                    <i class="fas fa-exclamation-triangle fa-2x text-danger"></i>
+                    <p class="text-danger mt-2">Erro ao carregar seus nodes</p>
+                    <button class="btn btn-primary" onclick="loadMyNodes()">
+                        <i class="fas fa-retry me-2"></i>Tentar Novamente
+                    </button>
+                </div>
+            `);
+        }
+    }
+    
+    function updateStatistics() {
+        const runningCount = myNodes.filter(n => n.status === 'Em andamento').length;
+        const completedCount = myNodes.filter(n => n.status === 'Concluído').length;
+        const totalCount = myNodes.length;
+        
+        $('#my-running-count').text(runningCount);
+        $('#my-completed-count').text(completedCount);
+        $('#my-total-count').text(totalCount);
+    }
+    
+    function populateFilters() {
+        // Grupos únicos
+        const grupos = [...new Set(myNodes.map(n => n.grupo))].sort();
+        const filterGrupo = $('#filter-grupo');
+        filterGrupo.find('option:not(:first)').remove();
+        grupos.forEach(grupo => {
+            filterGrupo.append(`<option value="${grupo}">${grupo}</option>`);
+        });
+    }
+    
+    function displayMyNodes() {
+        const container = $('#my-nodes-container');
+        container.empty();
+        
+        if (filteredNodes.length === 0) {
+            container.append(`
+                <div class="col-12 text-center">
+                    <i class="fas fa-info-circle fa-2x text-muted"></i>
+                    <p class="text-muted mt-2">Você ainda não possui nodes</p>
+                    <a href="/available" class="btn btn-primary">
+                        <i class="fas fa-play me-2"></i>Iniciar Primeiro Node
+                    </a>
+                </div>
+            `);
+            return;
+        }
+        
+        // Separa nodes em execução dos demais
+        const runningNodes = filteredNodes.filter(n => n.status === 'Em andamento');
+        const otherNodes = filteredNodes.filter(n => n.status !== 'Em andamento');
+        
+        // Exibe nodes em execução primeiro
+        if (runningNodes.length > 0) {
+            container.append(`
+                <div class="col-12 mb-4">
+                    <h6 class="text-warning border-bottom pb-2">
+                        <i class="fas fa-spinner me-2"></i>Em Execução
+                        <span class="badge bg-warning text-dark ms-2">${runningNodes.length}</span>
+                    </h6>
+                    <div class="row" id="running-nodes-container"></div>
+                </div>
+            `);
+            
+            const runningContainer = $('#running-nodes-container');
+            runningNodes.forEach(node => {
+                runningContainer.append(createNodeCard(node, true));
+            });
+        }
+        
+        // Exibe outros nodes
+        if (otherNodes.length > 0) {
+            container.append(`
+                <div class="col-12">
+                    <h6 class="text-secondary border-bottom pb-2">
+                        <i class="fas fa-history me-2"></i>Histórico
+                        <span class="badge bg-light text-dark ms-2">${otherNodes.length}</span>
+                    </h6>
+                    <div class="row" id="other-nodes-container"></div>
+                </div>
+            `);
+            
+            const otherContainer = $('#other-nodes-container');
+            // Ordena por data de atualização (mais recente primeiro)
+            otherNodes.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
+            otherNodes.forEach(node => {
+                otherContainer.append(createNodeCard(node, false));
+            });
+        }
+    }
+    
+    function createNodeCard(node, isRunning) {
+        const statusColor = getStatusColor(node.status);
+        const statusIcon = getStatusIcon(node.status);
+        
+        const startedAt = node.data_inicio ? 
+            new Date(node.data_inicio).toLocaleString('pt-BR') : '-';
+        const completedAt = node.data_conclusao ? 
+            new Date(node.data_conclusao).toLocaleString('pt-BR') : '-';
+        
+        const duration = getDuration(node.data_inicio, node.data_conclusao);
+        
+        const actionButtons = isRunning ? `
+            <button class="btn btn-success btn-sm w-100" onclick="completeNode(${node.id}, '${node.bloco}', '${node.cidade}', '${node.estado}', '${node.grupo}', '${startedAt}')">
+                <i class="fas fa-check me-2"></i>Completar
+            </button>
+        ` : `
+            <button class="btn btn-outline-info btn-sm w-100" onclick="viewNodeDetails(${JSON.stringify(node).replace(/"/g, '&quot;')})">
+                <i class="fas fa-eye me-2"></i>Ver Detalhes
+            </button>
+        `;
+        
+        return `
+            <div class="col-md-6 col-lg-4 mb-3">
+                <div class="card h-100 ${isRunning ? 'border-warning' : 'border-light'}">
+                    <div class="card-body">
+                        <h6 class="card-title">
+                            <i class="fas fa-cube me-2"></i>${node.bloco}
+                        </h6>
+                        
+                        <div class="mb-2">
+                            <span class="badge bg-${statusColor}">
+                                <i class="${statusIcon} me-1"></i>${node.status}
+                            </span>
+                            <span class="badge bg-info ms-1">${node.grupo}</span>
+                        </div>
+                        
+                        <p class="card-text">
+                            <small class="text-muted">
+                                <i class="fas fa-map-marker-alt me-1"></i>
+                                ${node.cidade}, ${node.estado}
+                            </small>
+                        </p>
+                        
+                        <div class="mb-3">
+                            <small class="text-muted">
+                                <strong>Iniciado:</strong> ${startedAt}<br>
+                                ${node.status === 'Concluído' ? `<strong>Concluído:</strong> ${completedAt}<br>` : ''}
+                                ${duration ? `<strong>Duração:</strong> ${duration}` : ''}
+                            </small>
+                        </div>
+                        
+                        ${actionButtons}
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    
+    function getStatusColor(status) {
+        const colors = {
+            'Em andamento': 'warning',
+            'Concluído': 'success',
+            'Ativo': 'primary'
+        };
+        return colors[status] || 'secondary';
+    }
+    
+    function getStatusIcon(status) {
+        const icons = {
+            'Em andamento': 'fas fa-spinner',
+            'Concluído': 'fas fa-check-circle',
+            'Ativo': 'fas fa-play-circle'
+        };
+        return icons[status] || 'fas fa-circle';
+    }
+    
+    function getDuration(startDate, endDate) {
+        if (!startDate) return null;
+        
+        const start = new Date(startDate);
+        const end = endDate ? new Date(endDate) : new Date();
+        
+        const diffMs = end - start;
+        const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+        const diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+        
+        if (diffHours > 0) {
+            return `${diffHours}h ${diffMinutes}m`;
+        } else {
+            return `${diffMinutes}m`;
+        }
+    }
+    
+    function completeNode(nodeId, bloco, cidade, estado, grupo, startedAt) {
+        $('#complete-node-id').val(nodeId);
+        $('#complete-modal-node-bloco').text(bloco);
+        $('#complete-modal-node-location').text(`${cidade}, ${estado}`);
+        $('#complete-modal-node-grupo').text(grupo);
+        $('#complete-modal-node-started').text(startedAt);
+        $('#completion-observation').val('');
+        
+        $('#completeNodeModal').modal('show');
+    }
+    
+    async function confirmCompleteNode() {
+        const nodeId = $('#complete-node-id').val();
+        const observation = $('#completion-observation').val();
+        
+        if (!nodeId) {
+            showAlert('Node não selecionado', 'warning');
+            return;
+        }
+        
+        try {
+            const response = await authenticatedFetch(`/api/nodes/${nodeId}/complete`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: `observacao=${encodeURIComponent(observation)}`
+            });
+            
+            if (response.ok) {
+                const node = await response.json();
+                showAlert(`Node ${node.bloco} completado com sucesso!`, 'success');
+                
+                $('#completeNodeModal').modal('hide');
+                
+                // Recarrega os dados
+                setTimeout(() => {
+                    loadMyNodes();
+                }, 1000);
+                
+            } else {
+                const error = await response.json();
+                showAlert(error.detail || 'Erro ao completar node', 'danger');
+            }
+            
+        } catch (error) {
+            console.error('Erro ao completar node:', error);
+            showAlert('Erro ao completar execução do node', 'danger');
+        }
+    }
+    
+    function viewNodeDetails(node) {
+        $('#view-node-bloco').text(node.bloco);
+        $('#view-node-estado').text(node.estado);
+        $('#view-node-cidade').text(node.cidade);
+        $('#view-node-grupo').text(node.grupo);
+        $('#view-node-status').html(`<span class="badge bg-${getStatusColor(node.status)}">${node.status}</span>`);
+        
+        $('#view-node-created').text(node.created_at ? new Date(node.created_at).toLocaleString('pt-BR') : '-');
+        $('#view-node-started').text(node.data_inicio ? new Date(node.data_inicio).toLocaleString('pt-BR') : '-');
+        $('#view-node-completed').text(node.data_conclusao ? new Date(node.data_conclusao).toLocaleString('pt-BR') : '-');
+        
+        const duration = getDuration(node.data_inicio, node.data_conclusao);
+        $('#view-node-duration').text(duration || '-');
+        
+        const observations = node.observacao ? 
+            node.observacao : 
+            '<em class="text-muted">Nenhuma observação registrada</em>';
+        $('#view-node-observations').html(observations);
+        
+        $('#viewNodeModal').modal('show');
+    }
+    
+    function applyFilters() {
+        const status = $('#filter-status').val();
+        const grupo = $('#filter-grupo').val();
+        const search = $('#search-nodes').val().toLowerCase();
+        
+        filteredNodes = myNodes.filter(node => {
+            if (status && node.status !== status) return false;
+            if (grupo && node.grupo !== grupo) return false;
+            if (search && !node.bloco.toLowerCase().includes(search)) return false;
+            
+            return true;
+        });
+        
+        displayMyNodes();
+    }
+    
+    // Event listeners para filtros
+    $('#filter-status, #filter-grupo').on('change', applyFilters);
+    $('#search-nodes').on('input', applyFilters);
+    
+    // Inicialização
+    $(document).ready(function() {
+        loadMyNodes();
+        
+        // Atualiza automaticamente a cada 30 segundos
+        setInterval(loadMyNodes, 30000);
+    });
+</script>
+{% endblock %}
