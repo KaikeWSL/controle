@@ -90,6 +90,26 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
+// Middleware adicional para resolver CORS em produção
+app.use((req, res, next) => {
+  const origin = req.get('Origin');
+  
+  // Se a origem é do Render, permitir explicitamente
+  if (origin && origin.includes('.onrender.com')) {
+    res.header('Access-Control-Allow-Origin', origin);
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Length, X-Requested-With');
+  }
+  
+  // Responder a preflight requests
+  if (req.method === 'OPTIONS') {
+    res.sendStatus(200);
+  } else {
+    next();
+  }
+});
+
 // Body parsing
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
@@ -100,6 +120,12 @@ if (process.env.NODE_ENV === 'development') {
 } else {
   app.use(morgan('combined'));
 }
+
+// Middleware para log de debugging 
+app.use((req, res, next) => {
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.url} - Origin: ${req.get('Origin') || 'none'}`);
+  next();
+});
 
 // Trust proxy (para rate limiting correto atrás de reverse proxy)
 app.set('trust proxy', 1);
@@ -118,6 +144,21 @@ app.use((req, res, next) => {
 /**
  * Rotas da API
  */
+
+// Rota raiz para teste
+app.get('/', (req, res) => {
+  res.json({
+    message: 'Sistema de Controle de Nodes - API funcionando!',
+    version: '1.0.0',
+    timestamp: new Date().toISOString(),
+    endpoints: {
+      health: '/api/health',
+      auth: '/api/auth',
+      nodes: '/api/nodes',
+      admin: '/api/admin'
+    }
+  });
+});
 
 // Rota de health check
 app.get('/api/health', async (req, res) => {
