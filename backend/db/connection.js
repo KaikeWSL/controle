@@ -7,25 +7,41 @@ const pool = new Pool({
   ssl: {
     rejectUnauthorized: false
   },
-  // Configurações de performance
+  // Configurações de performance para produção
   max: 20, // máximo de conexões no pool
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000,
+  connectionTimeoutMillis: 10000, // 10 segundos para timeout
+  acquireTimeoutMillis: 60000, // 60 segundos para adquirir conexão
+  createTimeoutMillis: 30000, // 30 segundos para criar conexão
+  destroyTimeoutMillis: 5000, // 5 segundos para destruir conexão
+  createRetryIntervalMillis: 200, // intervalo entre tentativas
+  reapIntervalMillis: 1000, // intervalo para limpeza de conexões
 });
 
-// Função para testar a conexão
-const testConnection = async () => {
-  try {
-    const client = await pool.connect();
-    console.log('✅ Conexão com PostgreSQL (Neon) estabelecida com sucesso!');
-    const result = await client.query('SELECT NOW()');
-    console.log('🕐 Horário do servidor:', result.rows[0].now);
-    client.release();
-    return true;
-  } catch (error) {
-    console.error('❌ Erro ao conectar com o banco de dados:', error.message);
-    return false;
+// Função para testar a conexão com retry
+const testConnection = async (retries = 3, delay = 5000) => {
+  for (let i = 0; i < retries; i++) {
+    try {
+      console.log(`📊 Tentativa ${i + 1}/${retries} de conexão com o banco...`);
+      const client = await pool.connect();
+      console.log('✅ Conexão com PostgreSQL (Neon) estabelecida com sucesso!');
+      const result = await client.query('SELECT NOW()');
+      console.log('🕐 Horário do servidor:', result.rows[0].now);
+      client.release();
+      return true;
+    } catch (error) {
+      console.error(`❌ Erro na tentativa ${i + 1}:`, error.message);
+      
+      if (i === retries - 1) {
+        console.error('❌ Todas as tentativas de conexão falharam');
+        return false;
+      }
+      
+      console.log(`⏳ Aguardando ${delay/1000}s antes da próxima tentativa...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
   }
+  return false;
 };
 
 // Função para executar queries com retry
