@@ -123,11 +123,20 @@ const optionalAuth = async (req, res, next) => {
  * Gerar token JWT
  */
 const generateToken = (payload) => {
-  return jwt.sign(
+  if (!process.env.JWT_SECRET) {
+    throw new Error('JWT_SECRET não configurado');
+  }
+  
+  console.log('🔑 Gerando token com payload:', payload);
+  
+  const token = jwt.sign(
     payload,
     process.env.JWT_SECRET,
     { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
   );
+  
+  console.log('✅ Token gerado com sucesso');
+  return token;
 };
 
 /**

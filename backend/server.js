@@ -167,12 +167,37 @@ app.get('/api/health', async (req, res) => {
   try {
     const dbConnected = await testConnection();
     
+    // Testar se as tabelas existem
+    let tables = [];
+    let allTablesExist = false;
+    
+    if (dbConnected) {
+      try {
+        const tablesCheck = await query(`
+          SELECT table_name 
+          FROM information_schema.tables 
+          WHERE table_schema = 'public' 
+          AND table_name IN ('usuarios', 'nodes', 'logs')
+          ORDER BY table_name;
+        `);
+        
+        tables = tablesCheck.rows.map(row => row.table_name);
+        allTablesExist = ['usuarios', 'nodes', 'logs'].every(table => tables.includes(table));
+      } catch (error) {
+        console.error('Erro ao verificar tabelas:', error.message);
+      }
+    }
+    
     res.json({
       success: true,
       status: 'OK',
       timestamp: new Date().toISOString(),
       version: '1.0.0',
-      database: dbConnected ? 'Connected' : 'Disconnected',
+      database: {
+        connected: dbConnected,
+        tables: tables,
+        allTablesExist: allTablesExist
+      },
       environment: process.env.NODE_ENV || 'development',
       uptime: Math.floor(process.uptime())
     });
@@ -180,7 +205,8 @@ app.get('/api/health', async (req, res) => {
     res.status(503).json({
       success: false,
       status: 'Service Unavailable',
-      message: 'Erro na verificação de saúde do serviço'
+      message: 'Erro na verificação de saúde do serviço',
+      error: error.message
     });
   }
 });

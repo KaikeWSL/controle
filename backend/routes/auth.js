@@ -7,6 +7,17 @@ const { generateToken, verifyToken } = require('../middleware/authMiddleware');
 const router = express.Router();
 
 /**
+ * Rota de teste para debug
+ */
+router.get('/test', (req, res) => {
+  res.json({
+    success: true,
+    message: 'Rota de autenticação funcionando!',
+    timestamp: new Date().toISOString()
+  });
+});
+
+/**
  * Schemas de validação
  */
 const loginUserSchema = Joi.object({
@@ -26,20 +37,23 @@ const loginAdminSchema = Joi.object({
  */
 const logAction = async (usuario, usuario_id, acao, detalhes, req) => {
   try {
+    const detalhesStr = typeof detalhes === 'object' ? JSON.stringify(detalhes) : String(detalhes || '');
+    
     await query(
       `INSERT INTO logs (usuario, usuario_id, acao, detalhes, ip_address, user_agent) 
        VALUES ($1, $2, $3, $4, $5, $6)`,
       [
-        usuario,
-        usuario_id,
-        acao,
-        JSON.stringify(detalhes),
-        req.ip || req.connection.remoteAddress,
-        req.get('User-Agent')
+        usuario || 'unknown',
+        usuario_id || 'unknown',
+        acao || 'unknown',
+        detalhesStr,
+        req?.ip || req?.connection?.remoteAddress || 'unknown',
+        req?.get('User-Agent') || 'unknown'
       ]
     );
   } catch (error) {
-    console.error('Erro ao registrar log:', error);
+    // Log de auditoria não deve quebrar o fluxo principal
+    console.error('⚠️  Erro ao registrar log de auditoria:', error.message);
   }
 };
 
@@ -65,11 +79,14 @@ router.post('/login-user', async (req, res) => {
     const { hardwareId } = value;
     console.log('🆔 Hardware ID recebido:', hardwareId);
     
-    // Verificar se usuário existe e está liberado
+    // Verificar se usuário existe
+    console.log('🔍 Verificando se usuário existe...');
     const userResult = await query(
       'SELECT id, nome, liberado, ativo FROM usuarios WHERE id = $1',
       [hardwareId]
     );
+    
+    console.log('📊 Resultado da query:', userResult.rows.length, 'usuários encontrados');
     
     if (userResult.rows.length === 0) {
       console.log('👤 Usuário não encontrado, criando novo usuário...');
@@ -77,6 +94,7 @@ router.post('/login-user', async (req, res) => {
       // Criar usuário automaticamente (liberado por padrão)
       const novoNome = `Usuario_${hardwareId.substring(0, 8)}`;
       
+      console.log('💾 Inserindo novo usuário:', novoNome);
       await query(
         'INSERT INTO usuarios (id, nome, liberado, ativo, data_criacao) VALUES ($1, $2, $3, $4, NOW())',
         [hardwareId, novoNome, true, true]
@@ -84,36 +102,27 @@ router.post('/login-user', async (req, res) => {
       
       console.log('✅ Novo usuário criado:', novoNome);
       
-      // Buscar o usuário recém-criado
-      const newUserResult = await query(
-        'SELECT id, nome, liberado, ativo FROM usuarios WHERE id = $1',
-        [hardwareId]
-      );
-      
-      const user = newUserResult.rows[0];
-      
       // Gerar token JWT
       const tokenPayload = {
-        userId: user.id,
-        nome: user.nome,
+        userId: hardwareId,
+        nome: novoNome,
         tipo: 'usuario',
-        liberado: user.liberado
+        liberado: true
       };
       
+      console.log('🔑 Gerando token JWT...');
       const token = generateToken(tokenPayload);
       
-      // Registrar log de sucesso
-      await logAction(user.nome, hardwareId, 'NOVO_USUARIO_LOGIN', { tipo: 'usuario', auto_criado: true }, req);
-      
+      console.log('✅ Login de novo usuário bem-sucedido');
       return res.json({
         success: true,
-        message: `Bem-vindo, ${user.nome}! Conta criada automaticamente.`,
+        message: `Bem-vindo, ${novoNome}! Conta criada automaticamente.`,
         data: {
           user: {
-            id: user.id,
-            nome: user.nome,
+            id: hardwareId,
+            nome: novoNome,
             tipo: 'usuario',
-            liberado: user.liberado
+            liberado: true
           },
           token
         }
@@ -124,8 +133,6 @@ router.post('/login-user', async (req, res) => {
     console.log('👤 Usuário encontrado:', user.nome);
     
     if (!user.liberado) {
-      await logAction(user.nome, hardwareId, 'LOGIN_FALHOU', { motivo: 'Usuario nao liberado' }, req);
-      
       return res.status(403).json({
         success: false,
         message: 'Usuário não autorizado. Entre em contato com o administrador.'
@@ -133,8 +140,6 @@ router.post('/login-user', async (req, res) => {
     }
     
     if (!user.ativo) {
-      await logAction(user.nome, hardwareId, 'LOGIN_FALHOU', { motivo: 'Usuario inativo' }, req);
-      
       return res.status(403).json({
         success: false,
         message: 'Usuário inativo. Entre em contato com o administrador.'
@@ -149,17 +154,17 @@ router.post('/login-user', async (req, res) => {
       liberado: user.liberado
     };
     
+    console.log('🔑 Gerando token JWT para usuário existente...');
     const token = generateToken(tokenPayload);
     
     // Atualizar último acesso
+    console.log('📝 Atualizando último acesso...');
     await query(
       'UPDATE usuarios SET ultimo_acesso = NOW() WHERE id = $1',
       [hardwareId]
     );
     
-    // Registrar log de sucesso
-    await logAction(user.nome, hardwareId, 'LOGIN_SUCESSO', { tipo: 'usuario' }, req);
-    
+    console.log('✅ Login bem-sucedido para:', user.nome);
     res.json({
       success: true,
       message: `Bem-vindo, ${user.nome}!`,
