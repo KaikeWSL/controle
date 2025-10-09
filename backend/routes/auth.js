@@ -157,7 +157,7 @@ router.post('/login-user', async (req, res) => {
     // Verificar se usuário existe
     console.log('🔍 Verificando se usuário existe...');
     const userResult = await query(
-      'SELECT id, nome, liberado, ativo FROM usuarios WHERE id = $1',
+      'SELECT id, nome, liberado FROM usuarios WHERE id = $1',
       [hardwareId]
     );
     
@@ -171,8 +171,8 @@ router.post('/login-user', async (req, res) => {
       
       console.log('💾 Inserindo novo usuário:', novoNome);
       await query(
-        'INSERT INTO usuarios (id, nome, liberado, ativo, data_criacao) VALUES ($1, $2, $3, $4, NOW())',
-        [hardwareId, novoNome, true, true]
+        'INSERT INTO usuarios (id, nome, liberado, data_criacao) VALUES ($1, $2, $3, NOW())',
+        [hardwareId, novoNome, true]
       );
       
       console.log('✅ Novo usuário criado:', novoNome);
@@ -214,7 +214,10 @@ router.post('/login-user', async (req, res) => {
       });
     }
     
-    if (!user.ativo) {
+    // Verificar se coluna 'ativo' existe (compatibilidade)
+    const isActive = user.ativo !== undefined ? user.ativo : true;
+    
+    if (!isActive) {
       return res.status(403).json({
         success: false,
         message: 'Usuário inativo. Entre em contato com o administrador.'

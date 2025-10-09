@@ -18,6 +18,13 @@ const essentialMigrations = [
     `
   },
   {
+    name: 'Adicionar coluna ativo se não existir',
+    sql: `
+      ALTER TABLE usuarios 
+      ADD COLUMN IF NOT EXISTS ativo BOOLEAN DEFAULT TRUE;
+    `
+  },
+  {
     name: 'Criar tabela nodes',
     sql: `
       CREATE TABLE IF NOT EXISTS nodes (

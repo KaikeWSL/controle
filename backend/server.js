@@ -10,6 +10,7 @@ require('dotenv').config();
 const { testConnection, closeConnection } = require('./db/connection');
 const { runMigrations } = require('./db/migrations');
 const { runEssentialMigrations } = require('./db/migrations-essential');
+const { fixUsersTable } = require('./db/fix-users-table');
 
 // Importar rotas
 const authRoutes = require('./routes/auth');
@@ -313,6 +314,14 @@ const startServer = async () => {
     
     // Em produção, usar migrações essenciais apenas
     if (process.env.NODE_ENV === 'production') {
+      // Primeiro, corrigir schema da tabela usuarios
+      console.log('🔧 Corrigindo schema de tabelas...');
+      const fixSuccess = await fixUsersTable();
+      if (!fixSuccess) {
+        console.error('❌ Falha ao corrigir schema das tabelas');
+        process.exit(1);
+      }
+      
       const success = await runEssentialMigrations();
       if (!success) {
         console.error('❌ Falha nas migrações essenciais');
