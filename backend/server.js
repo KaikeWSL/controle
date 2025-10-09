@@ -57,7 +57,31 @@ const loginLimiter = rateLimit({
 
 // CORS
 const corsOptions = {
-  origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+  origin: function (origin, callback) {
+    // Permitir requisições sem origin (mobile apps, Postman, etc.)
+    if (!origin) return callback(null, true);
+    
+    // Lista de origens permitidas
+    const allowedOrigins = [
+      'http://localhost:5173',
+      'http://localhost:3000',
+      'https://controle-1-8qb9.onrender.com',
+      'https://controle-7cfq.onrender.com'
+    ];
+    
+    // Em produção, permitir qualquer origem do Render
+    if (process.env.NODE_ENV === 'production' && origin.includes('.onrender.com')) {
+      return callback(null, true);
+    }
+    
+    // Verificar se a origem está na lista permitida
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      console.log('❌ Origem bloqueada pelo CORS:', origin);
+      callback(new Error('Não permitido pelo CORS'));
+    }
+  },
   credentials: true,
   optionsSuccessStatus: 200,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -220,7 +244,8 @@ const startServer = async () => {
       console.log('\n🎉 Servidor iniciado com sucesso!');
       console.log(`📍 URL: http://localhost:${PORT}`);
       console.log(`🌍 Ambiente: ${process.env.NODE_ENV || 'development'}`);
-      console.log(`🔒 CORS habilitado para: ${corsOptions.origin}`);
+      console.log(`🔒 CORS habilitado para múltiplas origens (desenvolvimento + *.onrender.com)`);
+      console.log(`📱 Frontend esperado: https://controle-1-8qb9.onrender.com`);
       console.log('\n📋 Endpoints disponíveis:');
       console.log('  🔐 Autenticação: /api/auth');
       console.log('  📦 Nodes (usuários): /api/nodes');
