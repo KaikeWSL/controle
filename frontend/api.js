@@ -1,5 +1,16 @@
-// Configuração da API
-const API_BASE_URL = window.location.origin + '/api';
+// Configuração da API - Auto-detecta ambiente
+const API_BASE_URL = (() => {
+    // Em produção no Render, use a URL do backend
+    if (window.location.hostname.includes('onrender.com')) {
+        return 'https://sistema-nodes-backend.onrender.com/api';
+    }
+    // Em desenvolvimento local
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        return 'http://localhost:3000/api';
+    }
+    // Fallback para mesmo domínio
+    return window.location.origin + '/api';
+})();
 
 // Função para fazer requisições HTTP
 async function apiRequest(endpoint, options = {}) {

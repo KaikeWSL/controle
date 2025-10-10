@@ -12,12 +12,43 @@ const PORT = process.env.PORT || 3000;
 
 // Middlewares de segurança
 app.use(helmet());
-app.use(cors({
-  origin: process.env.NODE_ENV === 'production' ? 
-    ['https://seudominio.com'] : 
-    ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:5500'],
-  credentials: true
-}));
+
+// Configuração CORS otimizada para Render
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Permitir requests sem origin (mobile apps, Postman, etc.)
+    if (!origin) return callback(null, true);
+    
+    const allowedOrigins = [
+      'http://localhost:3000',
+      'http://127.0.0.1:3000', 
+      'http://localhost:5500',
+      'https://sistema-nodes-frontend.onrender.com'
+    ];
+    
+    // Adicionar CORS_ORIGIN do ambiente se definido
+    if (process.env.CORS_ORIGIN) {
+      allowedOrigins.push(process.env.CORS_ORIGIN);
+    }
+    
+    // Permitir qualquer subdomínio do onrender.com em desenvolvimento
+    if (process.env.NODE_ENV !== 'production' && origin.includes('onrender.com')) {
+      allowedOrigins.push(origin);
+    }
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      console.log('CORS blocked origin:', origin);
+      callback(new Error('Não permitido pelo CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+};
+
+app.use(cors(corsOptions));
 
 // Rate limiting
 const limiter = rateLimit({
@@ -64,7 +95,9 @@ app.get('/api/health', async (req, res) => {
       success: true,
       message: 'Servidor funcionando',
       database: dbStatus ? 'Conectado' : 'Desconectado',
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      version: '1.0.0',
+      environment: process.env.NODE_ENV || 'development'
     });
   } catch (error) {
     res.status(500).json({
@@ -73,6 +106,22 @@ app.get('/api/health', async (req, res) => {
       error: error.message
     });
   }
+});
+
+// Rota simples de ping para uptime monitoring
+app.get('/ping', (req, res) => {
+  res.status(200).send('pong');
+});
+
+// Rota de status da API
+app.get('/api/status', (req, res) => {
+  res.json({
+    api: 'Sistema de Controle de Nodes',
+    version: '1.0.0',
+    status: 'online',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  });
 });
 
 // Fallback para SPA - todas as rotas não-API retornam o index.html
