@@ -714,21 +714,15 @@ function describeSharePointError(step, response, payload) {
   return `${step}: HTTP ${response.status} ${String(detail).slice(0, 200)}${hint}`.trim();
 }
 
-function buildSnapshotFileName(userName) {
-  const baseName = String(userName || 'Resumo')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-zA-Z0-9\s-]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-
-  return `${(baseName || 'Resumo').replace(/\s+/g, ' ')}.png`;
+function buildSnapshotFileName() {
+  return 'Resumo.png';
 }
 
 async function publishSummaryAttachment(pngBuffer, options = {}) {
 
   const token = await getGraphToken();
-  const userName = String(options.userName || '').trim();
+  const sourceName = String(options.userName || '').trim();
+  const userName = sourceName && sourceName !== 'Resumo' ? 'Resumo' : 'Resumo';
 
   const sitePath = "sites/USER-USER-EquipeProcisacpia";
   const hostname = "corpclarobr.sharepoint.com";
@@ -778,10 +772,62 @@ async function publishSummaryAttachment(pngBuffer, options = {}) {
     );
   }
 
-  const fileName = buildSnapshotFileName(userName);
+  const fileName = buildSnapshotFileName();
+  const folderName = 'DashboardSnapshots';
+  const folderPath = `root:/${folderName}`;
+
+  let folderResponse = await fetch(
+    `https://graph.microsoft.com/v1.0/drives/${drive.id}/${folderPath}`,
+    {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${token}` }
+    }
+  );
+
+  if (folderResponse.status === 404) {
+    folderResponse = await fetch(
+      `https://graph.microsoft.com/v1.0/drives/${drive.id}/root/children`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          name: folderName,
+          folder: {}
+        })
+      }
+    );
+
+    if (!folderResponse.ok) {
+      const folderData = await folderResponse.json().catch(() => ({}));
+      throw new Error(`Erro ao criar a pasta ${folderName}: ${JSON.stringify(folderData)}`);
+    }
+  }
+
+  const snapshotPath = `root:/${folderName}/${fileName}`;
+
+  const existingResponse = await fetch(
+    `https://graph.microsoft.com/v1.0/drives/${drive.id}/${snapshotPath}`,
+    {
+      method: 'HEAD',
+      headers: { Authorization: `Bearer ${token}` }
+    }
+  );
+
+  if (existingResponse.ok) {
+    await fetch(
+      `https://graph.microsoft.com/v1.0/drives/${drive.id}/${snapshotPath}`,
+      {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      }
+    );
+  }
 
   const uploadResponse = await fetch(
-    `https://graph.microsoft.com/v1.0/drives/${drive.id}/root:/DashboardSnapshots/${fileName}:/content`,
+    `https://graph.microsoft.com/v1.0/drives/${drive.id}/${snapshotPath}:/content`,
     {
       method: "PUT",
       headers: {
@@ -792,14 +838,21 @@ async function publishSummaryAttachment(pngBuffer, options = {}) {
     }
   );
 
-  const uploadData =
-    await uploadResponse.json();
+  const uploadData = await uploadResponse.json().catch(() => ({}));
 
   if (!uploadResponse.ok) {
-    throw new Error(
-      `Erro ao enviar imagem: ${JSON.stringify(uploadData)}`
-    );
+    throw new Error(`Erro ao enviar imagem: ${JSON.stringify(uploadData)}`);
   }
+
+  console.log(JSON.stringify({
+    event: 'summary_snapshot_uploaded',
+    folder: folderName,
+    fileName,
+    itemId: uploadData.id,
+    webUrl: uploadData.webUrl,
+    parentPath: `/${folderName}`,
+    userName: 'Resumo'
+  }));
 
   return uploadData.id;
 }
@@ -1512,8 +1565,8 @@ app.post('/api/reports/summary-snapshot', async (req, res) => {
     }
 
     const itemId = await publishSummaryAttachment(pngBuffer, { userName });
-    console.log(JSON.stringify({ event: 'summary_snapshot_published', requestId: req.requestId, itemId, userName }));
-    res.status(201).json({ ok: true, itemId, userName });
+    console.log(JSON.stringify({ event: 'summary_snapshot_published', requestId: req.requestId, itemId, userName, updated: true }));
+    res.status(201).json({ ok: true, itemId, userName, updated: true });
   } catch (error) {
     console.error(JSON.stringify({ event: 'summary_snapshot_error', requestId: req.requestId, message: error.message }));
     res.status(502).json({ message: 'Não foi possível publicar o resumo no SharePoint.', detail: error.message, requestId: req.requestId });
