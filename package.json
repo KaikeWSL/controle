@@ -1,0 +1,15 @@
+{
+  "name": "sharepoint-produtividade-dashboard",
+  "version": "1.0.0",
+  "description": "Dashboard de produtividade do SharePoint em HTML/JS com filtros por UF, cidade, mês e ano",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "compression": "^1.7.4",
+    "cors": "^2.8.5",
+    "express": "^4.19.2"
+  }
+}
